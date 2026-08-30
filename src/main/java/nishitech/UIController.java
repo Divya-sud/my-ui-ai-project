@@ -2,21 +2,34 @@ package nishitech;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import static spark.Spark.post;
+import static spark.Spark.*;
 
 public class UIController {
-    private static final OllamaService ollamaService = new OllamaService();
+    private static final OllamaService aiService = new OllamaService();
 
     public static void registerRoutes() {
-        post("/api/adapt-ui", (req, res) -> {
-            JsonObject body = JsonParser.parseString(req.body()).getAsJsonObject();
+        path("/api", () -> {
+            post("/adapt-ui", (req, res) -> {
+                res.type("application/json");
 
-            double gazeX = body.has("gazeX") ? body.get("gazeX").getAsDouble() : 500.0;
-            double gazeY = body.has("gazeY") ? body.get("gazeY").getAsDouble() : 300.0;
-            double pupilDiameter = body.has("pupilDiameter") ? body.get("pupilDiameter").getAsDouble() : 4.0;
+                String requestBody = req.body();
+                String profile = "standard-comfortable";
 
-            String visionState = RetinaProcessor.analyzeGazeData(gazeX, gazeY, pupilDiameter);
-            return ollamaService.generateThemeFromRetina(visionState);
+                try {
+                    if (requestBody != null && !requestBody.isBlank()) {
+                        JsonObject obj = JsonParser.parseString(requestBody).getAsJsonObject();
+                        if (obj.has("profile")) {
+                            profile = obj.get("profile").getAsString();
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to parse request JSON: " + e.getMessage());
+                }
+
+                System.out.println("Processing Biometric Vision Profile: " + profile);
+                String generatedTokens = aiService.generateThemeFromRetina(profile);
+                return generatedTokens;
+            });
         });
     }
 }

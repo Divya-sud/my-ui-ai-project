@@ -1,25 +1,23 @@
-# Stage 1: Build the Java Spark fat jar using Maven
+# Stage 1: Build the shaded jar using Maven
 FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
-# Copy pom.xml and resolve dependencies
+# Copy pom.xml and download dependencies
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# Copy source code and build final jar
+# Copy source and build
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Stage 2: Minimal runtime image
+# Stage 2: Lightweight JRE runtime
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Copy the built jar from Stage 1
-COPY --from=builder /app/target/*-with-dependencies.jar app.jar || COPY --from=builder /app/target/*.jar app.jar
+# Copy the exact shaded jar produced by Maven
+COPY --from=builder /app/target/my-ai-ui-project-1.0-SNAPSHOT.jar app.jar
 
-# Render supplies port via the PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 
-# Execute the Spark application
 ENTRYPOINT ["sh", "-c", "java -jar app.jar"]

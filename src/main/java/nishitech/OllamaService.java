@@ -24,28 +24,35 @@ public class OllamaService {
 
         Properties prop = new Properties();
         try (InputStream in = getClass().getClassLoader().getResourceAsStream("application.properties")) {
-            if (in != null) prop.load(in);
+            if (in != null) {
+                prop.load(in);
+            }
         } catch (Exception ignored) {}
 
-        this.apiUrl = prop.getProperty("groq.api.url", "https://api.groq.com/openai/v1/chat/completions");
-        this.model = prop.getProperty("groq.model", "llama-3.3-70b-versatile");
+        // 1. Strict, verified OpenAI-compatible endpoint on Groq
+        this.apiUrl = prop.getProperty("groq.api.url", "https://api.groq.com/openai/v1/chat/completions").trim();
 
+        // 2. Default to llama-3.1-8b-instant (guaranteed active and ultra-low latency)
+        this.model = prop.getProperty("groq.model", "llama-3.1-8b-instant").trim();
+
+        // 3. Retrieve and sanitize the API key
         String envKey = System.getenv("GROQ_API_KEY");
-        this.apiKey = (envKey != null && !envKey.isBlank()) ? envKey : prop.getProperty("groq.api.key", "");
+        String resolvedKey = (envKey != null && !envKey.isBlank()) ? envKey : prop.getProperty("groq.api.key", "");
+        this.apiKey = resolvedKey != null ? resolvedKey.trim() : "";
+
+        System.out.println("OllamaService initialized -> Target: " + this.apiUrl + " | Model: " + this.model);
     }
 
     public String generateThemeFromRetina(String visionProfile) {
-        if (this.apiKey == null || this.apiKey.isBlank()) {
-            return getFallbackTheme("No Groq Key Configured");
+        if (this.apiKey.isBlank()) {
+            System.err.println("CRITICAL: GROQ_API_KEY is missing! Set it in Render Environment Variables.");
+            return getFallbackTheme("No Groq API Key Configured");
         }
 
-        String prompt = "You are a world-class biometric vision UI ergonomics engine for BharatAcre.com. "
-                + "The user's eye and gaze sensor profile is: '" + visionProfile + "'. "
-                + "Rules: "
-                + "1. If profile indicates 'squinting' or 'strain', increase fontSize to '18px' or '19px', use higher contrast foreground text (#FFFFFF). "
-                + "2. If profile indicates 'far-distance', boost font weight and scale typography to '19px'. "
-                + "3. If 'night-strain-relief', use deep slate OLED black (#080c14), warm amber accent (#f59e0b), and soft off-white text (#f1f5f9). "
-                + "Output ONLY raw JSON matching this schema: "
+        String prompt = "You are an adaptive visual ergonomics engine for BharatAcre.com. "
+                + "User biometric vision profile: '" + visionProfile + "'. "
+                + "Generate an optimal UI theme. "
+                + "Output ONLY a valid JSON object matching this schema: "
                 + "{"
                 + "\"bgMain\":\"#hex\","
                 + "\"surface\":\"#hex\","
@@ -55,12 +62,12 @@ public class OllamaService {
                 + "\"accent\":\"#hex\","
                 + "\"fontSize\":\"16px\","
                 + "\"fontFamily\":\"'Plus Jakarta Sans', sans-serif\","
-                + "\"status\":\"Brief explanation of optical adaptation\""
+                + "\"status\":\"Retina adaptive profile active\""
                 + "}";
 
         JsonObject sysMsg = new JsonObject();
         sysMsg.addProperty("role", "system");
-        sysMsg.addProperty("content", "You are an automated API endpoint. Return raw JSON matching the schema only. No markdown formatting, no explanations.");
+        sysMsg.addProperty("content", "You are an automated API. Output strictly raw JSON matching the requested schema. No markdown formatting, no commentary.");
 
         JsonObject userMsg = new JsonObject();
         userMsg.addProperty("role", "user");
@@ -82,7 +89,7 @@ public class OllamaService {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(this.apiUrl))
-                    .header("Authorization", "Bearer " + this.apiKey.trim())
+                    .header("Authorization", "Bearer " + this.apiKey)
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(20))
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
@@ -91,8 +98,8 @@ public class OllamaService {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                System.err.println("Groq HTTP " + response.statusCode() + ": " + response.body());
-                return getFallbackTheme("HTTP " + response.statusCode());
+                System.err.println("Groq API Error [" + response.statusCode() + "]: " + response.body());
+                return getFallbackTheme("Groq HTTP " + response.statusCode());
             }
 
             JsonObject jsonResponse = JsonParser.parseString(response.body()).getAsJsonObject();
@@ -100,16 +107,17 @@ public class OllamaService {
                     .get(0).getAsJsonObject()
                     .getAsJsonObject("message")
                     .get("content").getAsString();
+
         } catch (Exception e) {
-            e.printStackTrace();
-            return getFallbackTheme("Engine exception");
+            System.err.println("Connection error calling Groq: " + e.getMessage());
+            return getFallbackTheme("Engine Connection Error");
         }
     }
 
     private String getFallbackTheme(String status) {
         return "{"
-                + "\"bgMain\":\"#0b0f19\","
-                + "\"surface\":\"#131b2e\","
+                + "\"bgMain\":\"#080c14\","
+                + "\"surface\":\"#111827\","
                 + "\"surfaceBorder\":\"rgba(255,255,255,0.12)\","
                 + "\"textPrimary\":\"#ffffff\","
                 + "\"textSecondary\":\"#94a3b8\","

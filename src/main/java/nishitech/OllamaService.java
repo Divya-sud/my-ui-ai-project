@@ -14,7 +14,7 @@ import java.util.Properties;
 public class OllamaService {
     // Hardcode the exact verified URL and model to prevent 404s
     private static final String GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-    private static final String DEFAULT_MODEL = "llama-3.1-8b-instant";
+    private static final String DEFAULT_MODEL = "llama-3.3-70b-versatile";
 
     private final String apiUrl;
     private final String model;

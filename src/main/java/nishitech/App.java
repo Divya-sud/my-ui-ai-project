@@ -4,12 +4,11 @@ import static spark.Spark.*;
 
 public class App {
     public static void main(String[] args) {
-        // Use Render's assigned port in cloud, default to 8080 locally
         String portStr = System.getenv("PORT");
         int portNumber = (portStr != null) ? Integer.parseInt(portStr) : 8080;
         port(portNumber);
 
-        // CORS headers
+        // Global CORS headers
         options("/*", (req, res) -> {
             String headers = req.headers("Access-Control-Request-Headers");
             if (headers != null) res.header("Access-Control-Allow-Headers", headers);
@@ -22,6 +21,12 @@ public class App {
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
             res.type("application/json");
+        });
+
+        // Root status endpoint to clear the unmapped route notice
+        get("/", (req, res) -> {
+            res.type("application/json");
+            return "{\"status\":\"ONLINE\",\"service\":\"BharatAcre AI Vision Engine\"}";
         });
 
         get("/health", (req, res) -> "{\"status\":\"UP\",\"provider\":\"Groq-Cloud\"}");
